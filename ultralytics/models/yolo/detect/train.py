@@ -112,7 +112,9 @@ class DetectionTrainer(BaseTrainer):
 
     def progress_string(self):
         """Returns a formatted string of training progress with epoch, GPU memory, loss, instances and size."""
-        return ("\n" + "%11s" * (4 + len(self.loss_names))) % (
+        return ("\n" + "%10s %10s %11s %11s" + "%11s" * len(self.loss_names) + "%11s%11s") % (
+            "Elapsed",
+            "Rate", 
             "Epoch",
             "GPU_mem",
             *self.loss_names,

@@ -420,13 +420,13 @@ class BaseTrainer:
 
                         # Convert to nice human-readable strings
                         elapsed_s   = format_time(elapsed)               # "0:01:34"
-                        rate_s      = f"{rate:6.1f} it/s"
+                        rate_s      = f"{rate:6.1f}it/s"
 
                         pbar.set_description(
-                            ("%9s  %9s  " + "%11s" * 2 + "%11.4g" * (2 + loss_length))
+                            ("%10s %10s %11s %11s " + "%11.4g" * loss_length + "%11.0f%11.0f")
                             % (
-                                elapsed_s,         # new ●
-                                rate_s,            # new ●
+                                elapsed_s,         # elapsed time
+                                rate_s,            # rate it/s
                                 f"{epoch + 1}/{self.epochs}",
                                 f"{self._get_memory():.3g}G",                    # GPU-mem
                                 *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),
