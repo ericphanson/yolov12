@@ -21,6 +21,11 @@ import torch
 from torch import distributed as dist
 from torch import nn, optim
 
+# Ensure TQDM shows progress bar
+os.environ.setdefault('FORCE_COLOR', '1')
+os.environ.setdefault('TQDM_DISABLE', '0')
+os.environ.setdefault('YOLO_VERBOSE', 'true')
+
 from ultralytics.cfg import get_cfg, get_save_dir
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.tasks import attempt_load_one_weight, attempt_load_weights
@@ -365,8 +370,15 @@ class BaseTrainer:
                 self.train_loader.reset()
 
             if RANK in {-1, 0}:
-                LOGGER.info(self.progress_string())
-                pbar = TQDM(enumerate(self.train_loader), total=nb)
+                pbar = TQDM(
+                    enumerate(self.train_loader),
+                    total=nb,
+                    bar_format='{desc}\n{percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+                    desc=f'Epoch {epoch + 1}/{self.epochs}',
+                    unit='batch',
+                    dynamic_ncols=True,
+                    leave=True
+                )
             self.tloss = None
             for i, batch in pbar:
                 try:
@@ -415,25 +427,18 @@ class BaseTrainer:
                     # Log
                     if RANK in {-1, 0}:
                         loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
-                        elapsed   = pbar.format_dict["elapsed"]                 # seconds → float
-                        rate      = pbar.format_dict["rate"] or 0               # it/s  → float
 
-                        # Convert to nice human-readable strings
-                        elapsed_s   = format_time(elapsed)               # "0:01:34"
-                        rate_s      = f"{rate:6.1f}it/s"
+                        # Build a concise description with key metrics
+                        metrics_str = " ".join([
+                            f"GPU:{self._get_memory():.1f}G",
+                            f"loss:{self.tloss[0]:.3f}" if loss_length > 0 else "loss:0.000",
+                            f"bs:{batch['cls'].shape[0]}",
+                            f"sz:{batch['img'].shape[-1]}"
+                        ])
 
-                        pbar.set_description(
-                            ("%10s %10s %11s %11s " + "%11.4g" * loss_length + "%11.0f%11.0f")
-                            % (
-                                elapsed_s,         # elapsed time
-                                rate_s,            # rate it/s
-                                f"{epoch + 1}/{self.epochs}",
-                                f"{self._get_memory():.3g}G",                    # GPU-mem
-                                *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),
-                                batch["cls"].shape[0],                           # batch
-                                batch["img"].shape[-1],                          # img-sz
-                            )
-                        )
+                        # Update the progress bar description with current metrics
+                        pbar.set_description(f"Epoch {epoch + 1}/{self.epochs} {metrics_str}")
+
                         self.run_callbacks("on_batch_end")
                         if self.args.plots and ni in self.plot_idx:
                             self.plot_training_samples(batch, ni)
