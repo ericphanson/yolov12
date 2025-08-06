@@ -1359,15 +1359,15 @@ class A2C2f(nn.Module):
         self.m = nn.ModuleList(
             nn.Sequential(*(ABlock(c_, num_heads, mlp_ratio, area) for _ in range(2))) if a2 else C3k(c_, c_, 2, shortcut, g) for _ in range(n)
         )
-
     def forward(self, x):
-        """Forward pass through R-ELAN layer – MPS-safe."""
         y = [self.cv1(x)]
         y.extend(m(y[-1]) for m in self.m)
 
-        z = self.cv2(torch.cat(y, 1).contiguous())          # cat → contiguous
-
+        z = self.cv2(torch.cat(y, 1).contiguous())
         if self.gamma is not None:
-            z = z * self.gamma.reshape(1, -1, 1, 1)         # view → reshape
+            # only legal when z and x have identical C dimension
+            z = z * self.gamma.reshape(1, -1, 1, 1)
+            if z.shape[1] == x.shape[1]:          # channel‐safe residual
+                z = (x + z).contiguous()          # match original semantics
 
-        return (x + z).contiguous()
+        return z
