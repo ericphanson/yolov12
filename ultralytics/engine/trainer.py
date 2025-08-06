@@ -373,7 +373,7 @@ class BaseTrainer:
                 pbar = TQDM(
                     enumerate(self.train_loader),
                     total=nb,
-                    bar_format='{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {rate_fmt} | {desc}',
+                    bar_format='{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]{rate_fmt}|{desc}',
                     desc=f'Epoch {epoch + 1}/{self.epochs}',
                     unit='batch',
                     dynamic_ncols=True,
