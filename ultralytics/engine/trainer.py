@@ -426,14 +426,13 @@ class BaseTrainer:
 
                     # Log
                     if RANK in {-1, 0}:
-                        loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
-
-                        # Build a concise description with key metrics
+                        loss_items = self.label_loss_items(self.tloss)
+                        loss_str = " ".join([f"{k.split('/')[-1]}:{v}" for k, v in loss_items.items()]) if isinstance(loss_items, dict) else ""
                         metrics_str = " ".join([
-                            f"GPU:{self._get_memory():.1f}G",
-                            f"loss:{self.tloss[0]:.3f}" if loss_length > 0 else "loss:0.000",
                             f"bs:{batch['cls'].shape[0]}",
-                        ])
+                            f"GPU:{self._get_memory():.1f}G",
+                            loss_str,
+                        ]).strip()
 
                         # Update the progress bar description with current metrics
                         pbar.set_description(f"Epoch {epoch + 1}/{self.epochs} {metrics_str}")
