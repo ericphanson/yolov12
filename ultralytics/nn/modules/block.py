@@ -1362,8 +1362,8 @@ class A2C2f(nn.Module):
 
     def forward(self, x):
         """Forward pass through R-ELAN layer."""
-        y = [self.cv1(x)]
-        y.extend(m(y[-1]) for m in self.m)
+        y = [self.cv1(x).contiguous()]
+        y.extend(m((y[-1]).contiguous()) for m in self.m)
         if self.gamma is not None:
-            return x + self.gamma.contiguous().view(1, -1, 1, 1) * self.cv2(torch.cat(y, 1))
-        return self.cv2(torch.cat(y, 1))
+            return x + self.gamma.contiguous().view(1, -1, 1, 1) * self.cv2(torch.cat(y, 1).contiguous())
+        return self.cv2(torch.cat(y, 1).contiguous())
