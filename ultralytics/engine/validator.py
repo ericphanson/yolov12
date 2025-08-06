@@ -197,6 +197,9 @@ class BaseValidator:
                 self.run_callbacks("on_val_batch_end")
             except KeyboardInterrupt:
                 print("Validation interrupted by user, stopping early.")
+                if trainer:
+                    print("Stopping training early...")
+                    trainer.stop = True
                 break
         stats = self.get_stats()
         self.check_stats(stats)
