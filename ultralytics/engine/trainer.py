@@ -373,7 +373,7 @@ class BaseTrainer:
                 pbar = TQDM(
                     enumerate(self.train_loader),
                     total=nb,
-                    bar_format='{percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{desc}',
+                    bar_format='{percentage:3.0f}%|{bar:10}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {rate_fmt} | {desc}',
                     desc=f'Epoch {epoch + 1}/{self.epochs}',
                     unit='batch',
                     dynamic_ncols=True,
@@ -427,15 +427,15 @@ class BaseTrainer:
                     # Log
                     if RANK in {-1, 0}:
                         loss_items = self.label_loss_items(self.tloss)
-                        loss_str = " ".join([f"{k.split('/')[-1]}:{v}" for k, v in loss_items.items()]) if isinstance(loss_items, dict) else ""
+                        loss_str = " ".join([f"{k.split('/')[-1]}:{v:.2f}" for k, v in loss_items.items()]) if isinstance(loss_items, dict) else ""
                         metrics_str = " ".join([
-                            f"bs:{batch['cls'].shape[0]}",
                             f"GPU:{self._get_memory():.1f}G",
                             loss_str,
                         ]).strip()
 
                         # Update the progress bar description with current metrics
-                        pbar.set_description(f"Epoch {epoch + 1}/{self.epochs} {metrics_str}")
+                        bs = batch['cls'].shape[0]
+                        pbar.set_description(f"epoch:{epoch + 1}/{self.epochs} {metrics_str} bs:{bs}")
 
                         self.run_callbacks("on_batch_end")
                         if self.args.plots and ni in self.plot_idx:
