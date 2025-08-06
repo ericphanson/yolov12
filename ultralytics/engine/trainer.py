@@ -425,6 +425,7 @@ class BaseTrainer:
                 except KeyboardInterrupt:
                     print(f"{colorstr('bold', 'WARNING: Training interrupted by user!')}")
                     self.stop = True
+                    break
 
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
             self.run_callbacks("on_train_epoch_end")
