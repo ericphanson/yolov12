@@ -1192,8 +1192,8 @@ class AAttn(nn.Module):
         >>> x = torch.randn(2, 64, 128, 128)
         >>> output = model(x)
         >>> print(output.shape)
-    
-    Notes: 
+
+    Notes:
         recommend that dim//num_heads be a multiple of 32 or 64.
 
     """
@@ -1258,8 +1258,8 @@ class AAttn(nn.Module):
             B, N, _ = x.shape
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        return self.proj(x + pp)
-    
+        return self.proj((x + pp).contiguous())
+
 
 class ABlock(nn.Module):
     """
@@ -1283,8 +1283,8 @@ class ABlock(nn.Module):
         >>> x = torch.randn(2, 64, 128, 128)
         >>> output = model(x)
         >>> print(output.shape)
-    
-    Notes: 
+
+    Notes:
         recommend that dim//num_heads be a multiple of 32 or 64.
     """
 
@@ -1307,12 +1307,12 @@ class ABlock(nn.Module):
 
     def forward(self, x):
         """Executes a forward pass through ABlock, applying area-attention and feed-forward layers to the input tensor."""
-        x = x + self.attn(x)
+        x = (x + self.attn(x)).contiguous()
         x = x + self.mlp(x)
         return x
 
 
-class A2C2f(nn.Module):  
+class A2C2f(nn.Module):
     """
     A2C2f module with residual enhanced feature extraction using ABlock blocks with area-attention. Also known as R-ELAN
 
