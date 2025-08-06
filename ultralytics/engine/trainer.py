@@ -373,7 +373,7 @@ class BaseTrainer:
                 pbar = TQDM(
                     enumerate(self.train_loader),
                     total=nb,
-                    bar_format='{desc}\n{percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
+                    bar_format='{percentage:3.0f}%|{bar:20}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]{desc}',
                     desc=f'Epoch {epoch + 1}/{self.epochs}',
                     unit='batch',
                     dynamic_ncols=True,
@@ -433,7 +433,6 @@ class BaseTrainer:
                             f"GPU:{self._get_memory():.1f}G",
                             f"loss:{self.tloss[0]:.3f}" if loss_length > 0 else "loss:0.000",
                             f"bs:{batch['cls'].shape[0]}",
-                            f"sz:{batch['img'].shape[-1]}"
                         ])
 
                         # Update the progress bar description with current metrics
