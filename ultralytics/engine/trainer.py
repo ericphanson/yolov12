@@ -361,66 +361,70 @@ class BaseTrainer:
                 pbar = TQDM(enumerate(self.train_loader), total=nb)
             self.tloss = None
             for i, batch in pbar:
-                self.run_callbacks("on_train_batch_start")
-                # Warmup
-                ni = i + nb * epoch
-                if ni <= nw:
-                    xi = [0, nw]  # x interp
-                    self.accumulate = max(1, int(np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round()))
-                    for j, x in enumerate(self.optimizer.param_groups):
-                        # Bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
-                        x["lr"] = np.interp(
-                            ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x["initial_lr"] * self.lf(epoch)]
+                try:
+                    self.run_callbacks("on_train_batch_start")
+                    # Warmup
+                    ni = i + nb * epoch
+                    if ni <= nw:
+                        xi = [0, nw]  # x interp
+                        self.accumulate = max(1, int(np.interp(ni, xi, [1, self.args.nbs / self.batch_size]).round()))
+                        for j, x in enumerate(self.optimizer.param_groups):
+                            # Bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
+                            x["lr"] = np.interp(
+                                ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x["initial_lr"] * self.lf(epoch)]
+                            )
+                            if "momentum" in x:
+                                x["momentum"] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
+
+                    # Forward
+                    with autocast(self.amp):
+                        batch = self.preprocess_batch(batch)
+                        self.loss, self.loss_items = self.model(batch)
+                        if RANK != -1:
+                            self.loss *= world_size
+                        self.tloss = (
+                            (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
                         )
-                        if "momentum" in x:
-                            x["momentum"] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
 
-                # Forward
-                with autocast(self.amp):
-                    batch = self.preprocess_batch(batch)
-                    self.loss, self.loss_items = self.model(batch)
-                    if RANK != -1:
-                        self.loss *= world_size
-                    self.tloss = (
-                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
-                    )
+                    # Backward
+                    self.scaler.scale(self.loss).backward()
 
-                # Backward
-                self.scaler.scale(self.loss).backward()
+                    # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
+                    if ni - last_opt_step >= self.accumulate:
+                        self.optimizer_step()
+                        last_opt_step = ni
 
-                # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
-                if ni - last_opt_step >= self.accumulate:
-                    self.optimizer_step()
-                    last_opt_step = ni
+                        # Timed stopping
+                        if self.args.time:
+                            self.stop = (time.time() - self.train_time_start) > (self.args.time * 3600)
+                            if RANK != -1:  # if DDP training
+                                broadcast_list = [self.stop if RANK == 0 else None]
+                                dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
+                                self.stop = broadcast_list[0]
+                            if self.stop:  # training time exceeded
+                                break
 
-                    # Timed stopping
-                    if self.args.time:
-                        self.stop = (time.time() - self.train_time_start) > (self.args.time * 3600)
-                        if RANK != -1:  # if DDP training
-                            broadcast_list = [self.stop if RANK == 0 else None]
-                            dist.broadcast_object_list(broadcast_list, 0)  # broadcast 'stop' to all ranks
-                            self.stop = broadcast_list[0]
-                        if self.stop:  # training time exceeded
-                            break
-
-                # Log
-                if RANK in {-1, 0}:
-                    loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
-                    pbar.set_description(
-                        ("%11s" * 2 + "%11.4g" * (2 + loss_length))
-                        % (
-                            f"{epoch + 1}/{self.epochs}",
-                            f"{self._get_memory():.3g}G",  # (GB) GPU memory util
-                            *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),  # losses
-                            batch["cls"].shape[0],  # batch size, i.e. 8
-                            batch["img"].shape[-1],  # imgsz, i.e 640
+                    # Log
+                    if RANK in {-1, 0}:
+                        loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
+                        pbar.set_description(
+                            ("%11s" * 2 + "%11.4g" * (2 + loss_length))
+                            % (
+                                f"{epoch + 1}/{self.epochs}",
+                                f"{self._get_memory():.3g}G",  # (GB) GPU memory util
+                                *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),  # losses
+                                batch["cls"].shape[0],  # batch size, i.e. 8
+                                batch["img"].shape[-1],  # imgsz, i.e 640
+                            )
                         )
-                    )
-                    self.run_callbacks("on_batch_end")
-                    if self.args.plots and ni in self.plot_idx:
-                        self.plot_training_samples(batch, ni)
+                        self.run_callbacks("on_batch_end")
+                        if self.args.plots and ni in self.plot_idx:
+                            self.plot_training_samples(batch, ni)
 
-                self.run_callbacks("on_train_batch_end")
+                    self.run_callbacks("on_train_batch_end")
+                except KeyboardInterrupt:
+                    print(f"{colorstr('bold', 'WARNING: Training interrupted by user!')}")
+                    self.stop = True
 
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
             self.run_callbacks("on_train_epoch_end")
