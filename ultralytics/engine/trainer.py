@@ -36,6 +36,7 @@ from ultralytics.utils import (
     colorstr,
     emojis,
     yaml_save,
+    format_time
 )
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_file, check_imgsz, check_model_file_from_stem, print_args
@@ -407,14 +408,26 @@ class BaseTrainer:
                     # Log
                     if RANK in {-1, 0}:
                         loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
+                        elapsed   = pbar.format_dict["elapsed"]                 # seconds → float
+                        remaining = pbar.format_dict["remaining"]               # idem
+                        rate      = pbar.format_dict["rate"] or 0               # it/s  → float
+
+                        # Convert to nice human-readable strings
+                        elapsed_s   = format_time(elapsed)               # "0:01:34"
+                        remaining_s = format_time(remaining)             # "0:03:12"
+                        rate_s      = f"{rate:6.1f} it/s"
+
                         pbar.set_description(
-                            ("%11s" * 2 + "%11.4g" * (2 + loss_length))
+                            ("%9s  %9s  %9s  " + "%11s" * 2 + "%11.4g" * (2 + loss_length))
                             % (
+                                remaining_s,       # new ●
+                                elapsed_s,         # new ●
+                                rate_s,            # new ●
                                 f"{epoch + 1}/{self.epochs}",
-                                f"{self._get_memory():.3g}G",  # (GB) GPU memory util
-                                *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),  # losses
-                                batch["cls"].shape[0],  # batch size, i.e. 8
-                                batch["img"].shape[-1],  # imgsz, i.e 640
+                                f"{self._get_memory():.3g}G",                    # GPU-mem
+                                *(self.tloss if loss_length > 1 else torch.unsqueeze(self.tloss, 0)),
+                                batch["cls"].shape[0],                           # batch
+                                batch["img"].shape[-1],                          # img-sz
                             )
                         )
                         self.run_callbacks("on_batch_end")
