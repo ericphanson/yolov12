@@ -117,7 +117,7 @@ class BaseValidator:
             model = model.half() if self.args.half else model.float()
             # self.model = model
             self.loss = torch.zeros_like(trainer.loss_items, device=trainer.device)
-            self.args.plots &= trainer.stopper.possible_stop or (trainer.epoch == trainer.epochs - 1)
+            self.args.plots &= trainer.stopper.possible_stop or (trainer.epoch == trainer.epochs - 1) or trainer.stop
             model.eval()
         else:
             if str(self.args.model).endswith(".yaml") and model is None:
@@ -169,31 +169,35 @@ class BaseValidator:
         self.init_metrics(de_parallel(model))
         self.jdict = []  # empty before each val
         for batch_i, batch in enumerate(bar):
-            self.run_callbacks("on_val_batch_start")
-            self.batch_i = batch_i
-            # Preprocess
-            with dt[0]:
-                batch = self.preprocess(batch)
+            try:
+                self.run_callbacks("on_val_batch_start")
+                self.batch_i = batch_i
+                # Preprocess
+                with dt[0]:
+                    batch = self.preprocess(batch)
 
-            # Inference
-            with dt[1]:
-                preds = model(batch["img"], augment=augment)
+                # Inference
+                with dt[1]:
+                    preds = model(batch["img"], augment=augment)
 
-            # Loss
-            with dt[2]:
-                if self.training:
-                    self.loss += model.loss(batch, preds)[1]
+                # Loss
+                with dt[2]:
+                    if self.training:
+                        self.loss += model.loss(batch, preds)[1]
 
-            # Postprocess
-            with dt[3]:
-                preds = self.postprocess(preds)
+                # Postprocess
+                with dt[3]:
+                    preds = self.postprocess(preds)
 
-            self.update_metrics(preds, batch)
-            if self.args.plots and batch_i < 3:
-                self.plot_val_samples(batch, batch_i)
-                self.plot_predictions(batch, preds, batch_i)
+                self.update_metrics(preds, batch)
+                if self.args.plots and batch_i < 3:
+                    self.plot_val_samples(batch, batch_i)
+                    self.plot_predictions(batch, preds, batch_i)
 
-            self.run_callbacks("on_val_batch_end")
+                self.run_callbacks("on_val_batch_end")
+            except KeyboardInterrupt:
+                print("Validation interrupted by user, stopping early.")
+                break
         stats = self.get_stats()
         self.check_stats(stats)
         self.speed = dict(zip(self.speed.keys(), (x.t / len(self.dataloader.dataset) * 1e3 for x in dt)))
