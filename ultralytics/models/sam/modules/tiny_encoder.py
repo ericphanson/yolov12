@@ -208,7 +208,7 @@ class PatchMerging(nn.Module):
             H, W = self.input_resolution
             B = len(x)
             # (B, C, H, W)
-            x = x.view(B, H, W, -1).permute(0, 3, 1, 2)
+            x = x.contiguous().view(B, H, W, -1).permute(0, 3, 1, 2)
 
         x = self.conv1(x)
         x = self.act(x)
@@ -454,7 +454,7 @@ class Attention(torch.nn.Module):
                     attention_offsets[offset] = len(attention_offsets)
                 idxs.append(attention_offsets[offset])
         self.attention_biases = torch.nn.Parameter(torch.zeros(num_heads, len(attention_offsets)))
-        self.register_buffer("attention_bias_idxs", torch.LongTensor(idxs).view(N, N), persistent=False)
+        self.register_buffer("attention_bias_idxs", torch.LongTensor(idxs).contiguous().view(N, N), persistent=False)
 
     @torch.no_grad()
     def train(self, mode=True):
@@ -474,7 +474,7 @@ class Attention(torch.nn.Module):
 
         qkv = self.qkv(x)
         # (B, N, num_heads, d)
-        q, k, v = qkv.view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3)
+        q, k, v = qkv.contiguous().view(B, N, self.num_heads, -1).split([self.key_dim, self.key_dim, self.d], dim=3)
         # (B, num_heads, N, d)
         q = q.permute(0, 2, 1, 3)
         k = k.permute(0, 2, 1, 3)
@@ -593,7 +593,7 @@ class TinyViTBlock(nn.Module):
         if h == self.window_size and w == self.window_size:
             x = self.attn(x)
         else:
-            x = x.view(b, h, w, c)
+            x = x.contiguous().view(b, h, w, c)
             pad_b = (self.window_size - h % self.window_size) % self.window_size
             pad_r = (self.window_size - w % self.window_size) % self.window_size
             padding = pad_b > 0 or pad_r > 0
@@ -606,23 +606,23 @@ class TinyViTBlock(nn.Module):
 
             # Window partition
             x = (
-                x.view(b, nH, self.window_size, nW, self.window_size, c)
+                x.contiguous().view(b, nH, self.window_size, nW, self.window_size, c)
                 .transpose(2, 3)
                 .reshape(b * nH * nW, self.window_size * self.window_size, c)
             )
             x = self.attn(x)
 
             # Window reverse
-            x = x.view(b, nH, nW, self.window_size, self.window_size, c).transpose(2, 3).reshape(b, pH, pW, c)
+            x = x.contiguous().view(b, nH, nW, self.window_size, self.window_size, c).transpose(2, 3).reshape(b, pH, pW, c)
             if padding:
                 x = x[:, :h, :w].contiguous()
 
-            x = x.view(b, hw, c)
+            x = x.contiguous().view(b, hw, c)
 
         x = res_x + self.drop_path(x)
         x = x.transpose(1, 2).reshape(b, c, h, w)
         x = self.local_conv(x)
-        x = x.view(b, c, hw).transpose(1, 2)
+        x = x.contiguous().view(b, c, hw).transpose(1, 2)
 
         return x + self.drop_path(self.mlp(x))
 
@@ -983,7 +983,7 @@ class TinyViT(nn.Module):
             layer = self.layers[i]
             x = layer(x)
         batch, _, channel = x.shape
-        x = x.view(batch, self.patches_resolution[0] // 4, self.patches_resolution[1] // 4, channel)
+        x = x.contiguous().view(batch, self.patches_resolution[0] // 4, self.patches_resolution[1] // 4, channel)
         x = x.permute(0, 3, 1, 2)
         return self.neck(x)
 

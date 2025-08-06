@@ -204,13 +204,13 @@ class SegmentationValidator(DetectionValidator):
         if masks:
             if overlap:
                 nl = len(gt_cls)
-                index = torch.arange(nl, device=gt_masks.device).view(nl, 1, 1) + 1
+                index = torch.arange(nl, device=gt_masks.device).contiguous().view(nl, 1, 1) + 1
                 gt_masks = gt_masks.repeat(nl, 1, 1)  # shape(1,640,640) -> (n,640,640)
                 gt_masks = torch.where(gt_masks == index, 1.0, 0.0)
             if gt_masks.shape[1:] != pred_masks.shape[1:]:
                 gt_masks = F.interpolate(gt_masks[None], pred_masks.shape[1:], mode="bilinear", align_corners=False)[0]
                 gt_masks = gt_masks.gt_(0.5)
-            iou = mask_iou(gt_masks.view(gt_masks.shape[0], -1), pred_masks.view(pred_masks.shape[0], -1))
+            iou = mask_iou(gt_masks.contiguous().view(gt_masks.shape[0], -1), pred_masks.contiguous().view(pred_masks.shape[0], -1))
         else:  # boxes
             iou = box_iou(gt_bboxes, detections[:, :4])
 

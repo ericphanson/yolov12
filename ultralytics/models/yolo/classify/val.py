@@ -99,7 +99,7 @@ class ClassificationValidator(BaseValidator):
         plot_images(
             images=batch["img"],
             batch_idx=torch.arange(len(batch["img"])),
-            cls=batch["cls"].view(-1),  # warning: use .view(), not .squeeze() for Classify models
+            cls=batch["cls"].contiguous().view(-1),  # warning: use .contiguous().view(), not .squeeze() for Classify models
             fname=self.save_dir / f"val_batch{ni}_labels.jpg",
             names=self.names,
             on_plot=self.on_plot,

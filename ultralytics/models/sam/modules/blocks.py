@@ -784,12 +784,12 @@ class PositionEmbeddingSine(nn.Module):
             return self.cache[cache_key][None].repeat(x.shape[0], 1, 1, 1)
         y_embed = (
             torch.arange(1, x.shape[-2] + 1, dtype=torch.float32, device=x.device)
-            .view(1, -1, 1)
+            .contiguous().view(1, -1, 1)
             .repeat(x.shape[0], 1, x.shape[-1])
         )
         x_embed = (
             torch.arange(1, x.shape[-1] + 1, dtype=torch.float32, device=x.device)
-            .view(1, 1, -1)
+            .contiguous().view(1, 1, -1)
             .repeat(x.shape[0], x.shape[-2], 1)
         )
 
@@ -1066,7 +1066,7 @@ class REAttention(nn.Module):
             attn = add_decomposed_rel_pos(attn, q, self.rel_pos_h, self.rel_pos_w, (H, W), (H, W))
 
         attn = attn.softmax(dim=-1)
-        x = (attn @ v).view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
+        x = (attn @ v).contiguous().view(B, self.num_heads, H, W, -1).permute(0, 2, 3, 1, 4).reshape(B, H, W, -1)
         return self.proj(x)
 
 

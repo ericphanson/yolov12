@@ -72,7 +72,7 @@ class DETRLoss(nn.Module):
         one_hot = torch.zeros((bs, nq, self.nc + 1), dtype=torch.int64, device=targets.device)
         one_hot.scatter_(2, targets.unsqueeze(-1), 1)
         one_hot = one_hot[..., :-1]
-        gt_scores = gt_scores.view(bs, nq, 1) * one_hot
+        gt_scores = gt_scores.contiguous().view(bs, nq, 1) * one_hot
 
         if self.fl:
             if num_gts and self.vfl:

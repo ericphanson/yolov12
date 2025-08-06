@@ -116,7 +116,7 @@ class OBBValidator(DetectionValidator):
         stem = Path(filename).stem
         image_id = int(stem) if stem.isnumeric() else stem
         rbox = torch.cat([predn[:, :4], predn[:, -1:]], dim=-1)
-        poly = ops.xywhr2xyxyxyxy(rbox).view(-1, 8)
+        poly = ops.xywhr2xyxyxyxy(rbox).contiguous().view(-1, 8)
         for i, (r, b) in enumerate(zip(rbox.tolist(), poly.tolist())):
             self.jdict.append(
                 {
@@ -191,7 +191,7 @@ class OBBValidator(DetectionValidator):
                 i = ops.nms_rotated(b, scores, 0.3)
                 bbox = bbox[i]
 
-                b = ops.xywhr2xyxyxyxy(bbox[:, :5]).view(-1, 8)
+                b = ops.xywhr2xyxyxyxy(bbox[:, :5]).contiguous().view(-1, 8)
                 for x in torch.cat([b, bbox[:, 5:7]], dim=-1).tolist():
                     classname = self.names[int(x[-1])].replace(" ", "-")
                     p = [round(i, 3) for i in x[:-2]]  # poly

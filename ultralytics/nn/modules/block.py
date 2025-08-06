@@ -65,14 +65,14 @@ class DFL(nn.Module):
         super().__init__()
         self.conv = nn.Conv2d(c1, 1, 1, bias=False).requires_grad_(False)
         x = torch.arange(c1, dtype=torch.float)
-        self.conv.weight.data[:] = nn.Parameter(x.view(1, c1, 1, 1))
+        self.conv.weight.data[:] = nn.Parameter(x.contiguous().view(1, c1, 1, 1))
         self.c1 = c1
 
     def forward(self, x):
         """Applies a transformer layer on input tensor 'x' and returns a tensor."""
         b, _, a = x.shape  # batch, channels, anchors
-        return self.conv(x.view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).view(b, 4, a)
-        # return self.conv(x.view(b, self.c1, 4, a).softmax(1)).view(b, 4, a)
+        return self.conv(x.contiguous().view(b, 4, self.c1, a).transpose(2, 1).softmax(1)).contiguous().view(b, 4, a)
+        # return self.conv(x.contiguous().view(b, self.c1, 4, a).softmax(1)).contiguous().view(b, 4, a)
 
 
 class Proto(nn.Module):
@@ -428,9 +428,9 @@ class MaxSigmoidAttnBlock(nn.Module):
         bs, _, h, w = x.shape
 
         guide = self.gl(guide)
-        guide = guide.view(bs, -1, self.nh, self.hc)
+        guide = guide.contiguous().view(bs, -1, self.nh, self.hc)
         embed = self.ec(x) if self.ec is not None else x
-        embed = embed.view(bs, self.nh, self.hc, h, w)
+        embed = embed.contiguous().view(bs, self.nh, self.hc, h, w)
 
         aw = torch.einsum("bmchw,bnmc->bmhwn", embed, guide)
         aw = aw.max(dim=-1)[0]
@@ -439,9 +439,9 @@ class MaxSigmoidAttnBlock(nn.Module):
         aw = aw.sigmoid() * self.scale
 
         x = self.proj_conv(x)
-        x = x.view(bs, self.nh, -1, h, w)
+        x = x.contiguous().view(bs, self.nh, -1, h, w)
         x = x * aw.unsqueeze(2)
-        return x.view(bs, -1, h, w)
+        return x.contiguous().view(bs, -1, h, w)
 
 
 class C2fAttn(nn.Module):
@@ -497,7 +497,7 @@ class ImagePoolingAttn(nn.Module):
         bs = x[0].shape[0]
         assert len(x) == self.nf
         num_patches = self.k**2
-        x = [pool(proj(x)).view(bs, -1, num_patches) for (x, proj, pool) in zip(x, self.projections, self.im_pools)]
+        x = [pool(proj(x)).contiguous().view(bs, -1, num_patches) for (x, proj, pool) in zip(x, self.projections, self.im_pools)]
         x = torch.cat(x, dim=-1).transpose(1, 2)
         q = self.query(text)
         k = self.key(x)
@@ -910,13 +910,13 @@ class Attention(nn.Module):
         B, C, H, W = x.shape
         N = H * W
         qkv = self.qkv(x)
-        q, k, v = qkv.view(B, self.num_heads, self.key_dim * 2 + self.head_dim, N).split(
+        q, k, v = qkv.contiguous().view(B, self.num_heads, self.key_dim * 2 + self.head_dim, N).split(
             [self.key_dim, self.key_dim, self.head_dim], dim=2
         )
 
         attn = (q.transpose(-2, -1) @ k) * self.scale
         attn = attn.softmax(dim=-1)
-        x = (v @ attn.transpose(-2, -1)).view(B, C, H, W) + self.pe(v.reshape(B, C, H, W))
+        x = (v @ attn.transpose(-2, -1)).contiguous().view(B, C, H, W) + self.pe(v.reshape(B, C, H, W))
         x = self.proj(x)
         return x
 
@@ -1231,9 +1231,9 @@ class AAttn(nn.Module):
         q, k = qk.split([C, C], dim=2)
 
         if x.is_cuda and USE_FLASH_ATTN:
-            q = q.view(B, N, self.num_heads, self.head_dim)
-            k = k.view(B, N, self.num_heads, self.head_dim)
-            v = v.view(B, N, self.num_heads, self.head_dim)
+            q = q.contiguous().view(B, N, self.num_heads, self.head_dim)
+            k = k.contiguous().view(B, N, self.num_heads, self.head_dim)
+            v = v.contiguous().view(B, N, self.num_heads, self.head_dim)
 
             x = flash_attn_func(
                 q.contiguous().half(),
@@ -1241,9 +1241,9 @@ class AAttn(nn.Module):
                 v.contiguous().half()
             ).to(q.dtype)
         else:
-            q = q.transpose(1, 2).view(B, self.num_heads, self.head_dim, N)
-            k = k.transpose(1, 2).view(B, self.num_heads, self.head_dim, N)
-            v = v.transpose(1, 2).view(B, self.num_heads, self.head_dim, N)
+            q = q.transpose(1, 2).contiguous().view(B, self.num_heads, self.head_dim, N)
+            k = k.transpose(1, 2).contiguous().view(B, self.num_heads, self.head_dim, N)
+            v = v.transpose(1, 2).contiguous().view(B, self.num_heads, self.head_dim, N)
 
             attn = (q.transpose(-2, -1) @ k) * (self.head_dim ** -0.5)
             max_attn = attn.max(dim=-1, keepdim=True).values
@@ -1365,5 +1365,5 @@ class A2C2f(nn.Module):
         y = [self.cv1(x)]
         y.extend(m(y[-1]) for m in self.m)
         if self.gamma is not None:
-            return x + self.gamma.view(1, -1, 1, 1) * self.cv2(torch.cat(y, 1))
+            return x + self.gamma.contiguous().view(1, -1, 1, 1) * self.cv2(torch.cat(y, 1))
         return self.cv2(torch.cat(y, 1))

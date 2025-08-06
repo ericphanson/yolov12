@@ -79,6 +79,6 @@ def multi_scale_deformable_attn_pytorch(
     output = (
         (torch.stack(sampling_value_list, dim=-2).flatten(-2) * attention_weights)
         .sum(-1)
-        .view(bs, num_heads * embed_dims, num_queries)
+        .contiguous().view(bs, num_heads * embed_dims, num_queries)
     )
     return output.transpose(1, 2).contiguous()

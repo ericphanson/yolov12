@@ -272,7 +272,7 @@ def non_max_suppression(
             x = torch.cat((box[i], x[i, 4 + j, None], j[:, None].float(), mask[i]), 1)
         else:  # best class only
             conf, j = cls.max(1, keepdim=True)
-            x = torch.cat((box, conf, j.float(), mask), 1)[conf.view(-1) > conf_thres]
+            x = torch.cat((box, conf, j.float(), mask), 1)[conf.contiguous().view(-1) > conf_thres]
 
         # Filter by class
         if classes is not None:
@@ -677,7 +677,7 @@ def process_mask(protos, masks_in, bboxes, shape, upsample=False):
     """
     c, mh, mw = protos.shape  # CHW
     ih, iw = shape
-    masks = (masks_in @ protos.float().view(c, -1)).view(-1, mh, mw)  # CHW
+    masks = (masks_in @ protos.float().contiguous().view(c, -1)).contiguous().view(-1, mh, mw)  # CHW
     width_ratio = mw / iw
     height_ratio = mh / ih
 
@@ -707,7 +707,7 @@ def process_mask_native(protos, masks_in, bboxes, shape):
         masks (torch.Tensor): The returned masks with dimensions [h, w, n].
     """
     c, mh, mw = protos.shape  # CHW
-    masks = (masks_in @ protos.float().view(c, -1)).view(-1, mh, mw)
+    masks = (masks_in @ protos.float().contiguous().view(c, -1)).contiguous().view(-1, mh, mw)
     masks = scale_masks(masks[None], shape)[0]  # CHW
     masks = crop_mask(masks, bboxes)  # CHW
     return masks.gt_(0.0)

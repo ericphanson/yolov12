@@ -99,7 +99,7 @@ class PoseValidator(DetectionValidator):
         """Prepares and scales keypoints in a batch for pose processing."""
         predn = super()._prepare_pred(pred, pbatch)
         nk = pbatch["kpts"].shape[1]
-        pred_kpts = predn[:, 6:].view(len(predn), nk, -1)
+        pred_kpts = predn[:, 6:].contiguous().view(len(predn), nk, -1)
         ops.scale_coords(pbatch["imgsz"], pred_kpts, pbatch["ori_shape"], ratio_pad=pbatch["ratio_pad"])
         return predn, pred_kpts
 
@@ -212,7 +212,7 @@ class PoseValidator(DetectionValidator):
 
     def plot_predictions(self, batch, preds, ni):
         """Plots predictions for YOLO model."""
-        pred_kpts = torch.cat([p[:, 6:].view(-1, *self.kpt_shape) for p in preds], 0)
+        pred_kpts = torch.cat([p[:, 6:].contiguous().view(-1, *self.kpt_shape) for p in preds], 0)
         plot_images(
             batch["img"],
             *output_to_target(preds, max_det=self.args.max_det),

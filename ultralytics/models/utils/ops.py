@@ -75,10 +75,10 @@ class HungarianMatcher(nn.Module):
 
         # We flatten to compute the cost matrices in a batch
         # [batch_size * num_queries, num_classes]
-        pred_scores = pred_scores.detach().view(-1, nc)
+        pred_scores = pred_scores.detach().contiguous().view(-1, nc)
         pred_scores = F.sigmoid(pred_scores) if self.use_fl else F.softmax(pred_scores, dim=-1)
         # [batch_size * num_queries, 4]
-        pred_bboxes = pred_bboxes.detach().view(-1, 4)
+        pred_bboxes = pred_bboxes.detach().contiguous().view(-1, 4)
 
         # Compute the classification cost
         pred_scores = pred_scores[:, gt_cls]
@@ -108,7 +108,7 @@ class HungarianMatcher(nn.Module):
         # Set invalid values (NaNs and infinities) to 0 (fixes ValueError: matrix contains invalid numeric entries)
         C[C.isnan() | C.isinf()] = 0.0
 
-        C = C.view(bs, nq, -1).cpu()
+        C = C.contiguous().view(bs, nq, -1).cpu()
         indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(gt_groups, -1))]
         gt_groups = torch.as_tensor([0, *gt_groups[:-1]]).cumsum_(0)  # (idx for queries, idx for gt)
         return [
@@ -191,7 +191,7 @@ def get_cdn_group(
     # Each group has positive and negative queries.
     dn_cls = gt_cls.repeat(2 * num_group)  # (2*num_group*bs*num, )
     dn_bbox = gt_bbox.repeat(2 * num_group, 1)  # 2*num_group*bs*num, 4
-    dn_b_idx = b_idx.repeat(2 * num_group).view(-1)  # (2*num_group*bs*num, )
+    dn_b_idx = b_idx.repeat(2 * num_group).contiguous().view(-1)  # (2*num_group*bs*num, )
 
     # Positive and negative mask
     # (bs*num*num_group, ), the second total_num*num_group part as negative samples

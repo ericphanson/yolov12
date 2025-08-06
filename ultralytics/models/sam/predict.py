@@ -427,8 +427,8 @@ class Predictor(BasePredictor):
         model.eval()
         self.model = model.to(device)
         self.device = device
-        self.mean = torch.tensor([123.675, 116.28, 103.53]).view(-1, 1, 1).to(device)
-        self.std = torch.tensor([58.395, 57.12, 57.375]).view(-1, 1, 1).to(device)
+        self.mean = torch.tensor([123.675, 116.28, 103.53]).contiguous().view(-1, 1, 1).to(device)
+        self.std = torch.tensor([58.395, 57.12, 57.375]).contiguous().view(-1, 1, 1).to(device)
 
         # Ultralytics compatibility settings
         self.model.pt = False
@@ -750,7 +750,7 @@ class SAM2Predictor(Predictor):
         """
         bboxes, points, labels, masks = super()._prepare_prompts(dst_shape, bboxes, points, labels, masks)
         if bboxes is not None:
-            bboxes = bboxes.view(-1, 2, 2)
+            bboxes = bboxes.contiguous().view(-1, 2, 2)
             bbox_labels = torch.tensor([[2, 3]], dtype=torch.int32, device=bboxes.device).expand(len(bboxes), -1)
             # NOTE: merge "boxes" and "points" into a single "points" input
             # (where boxes are added at the beginning) to model.sam_prompt_encoder
@@ -806,7 +806,7 @@ class SAM2Predictor(Predictor):
         if self.model.directly_add_no_mem_embed:
             vision_feats[-1] = vision_feats[-1] + self.model.no_mem_embed
         feats = [
-            feat.permute(1, 2, 0).view(1, -1, *feat_size)
+            feat.permute(1, 2, 0).contiguous().view(1, -1, *feat_size)
             for feat, feat_size in zip(vision_feats[::-1], self._bb_feat_sizes[::-1])
         ][::-1]
         return {"image_embed": feats[-1], "high_res_feats": feats[:-1]}

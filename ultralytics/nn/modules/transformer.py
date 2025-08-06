@@ -96,7 +96,7 @@ class AIFI(TransformerEncoderLayer):
         pos_embed = self.build_2d_sincos_position_embedding(w, h, c)
         # Flatten [B, C, H, W] to [B, HxW, C]
         x = super().forward(x.flatten(2).permute(0, 2, 1), pos=pos_embed.to(device=x.device, dtype=x.dtype))
-        return x.permute(0, 2, 1).view([-1, c, h, w]).contiguous()
+        return x.permute(0, 2, 1).contiguous().view([-1, c, h, w]).contiguous()
 
     @staticmethod
     def build_2d_sincos_position_embedding(w, h, embed_dim=256, temperature=10000.0):
@@ -252,13 +252,13 @@ class MSDeformAttn(nn.Module):
         grid_init = torch.stack([thetas.cos(), thetas.sin()], -1)
         grid_init = (
             (grid_init / grid_init.abs().max(-1, keepdim=True)[0])
-            .view(self.n_heads, 1, 1, 2)
+            .contiguous().view(self.n_heads, 1, 1, 2)
             .repeat(1, self.n_levels, self.n_points, 1)
         )
         for i in range(self.n_points):
             grid_init[:, :, i, :] *= i + 1
         with torch.no_grad():
-            self.sampling_offsets.bias = nn.Parameter(grid_init.view(-1))
+            self.sampling_offsets.bias = nn.Parameter(grid_init.contiguous().view(-1))
         constant_(self.attention_weights.weight.data, 0.0)
         constant_(self.attention_weights.bias.data, 0.0)
         xavier_uniform_(self.value_proj.weight.data)
@@ -290,10 +290,10 @@ class MSDeformAttn(nn.Module):
         value = self.value_proj(value)
         if value_mask is not None:
             value = value.masked_fill(value_mask[..., None], float(0))
-        value = value.view(bs, len_v, self.n_heads, self.d_model // self.n_heads)
-        sampling_offsets = self.sampling_offsets(query).view(bs, len_q, self.n_heads, self.n_levels, self.n_points, 2)
-        attention_weights = self.attention_weights(query).view(bs, len_q, self.n_heads, self.n_levels * self.n_points)
-        attention_weights = F.softmax(attention_weights, -1).view(bs, len_q, self.n_heads, self.n_levels, self.n_points)
+        value = value.contiguous().view(bs, len_v, self.n_heads, self.d_model // self.n_heads)
+        sampling_offsets = self.sampling_offsets(query).contiguous().view(bs, len_q, self.n_heads, self.n_levels, self.n_points, 2)
+        attention_weights = self.attention_weights(query).contiguous().view(bs, len_q, self.n_heads, self.n_levels * self.n_points)
+        attention_weights = F.softmax(attention_weights, -1).contiguous().view(bs, len_q, self.n_heads, self.n_levels, self.n_points)
         # N, Len_q, n_heads, n_levels, n_points, 2
         num_points = refer_bbox.shape[-1]
         if num_points == 2:
