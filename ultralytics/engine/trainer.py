@@ -435,7 +435,7 @@ class BaseTrainer:
 
                         # Update the progress bar description with current metrics
                         bs = batch['cls'].shape[0]
-                        pbar.set_description(f"epoch:{epoch + 1}/{self.epochs} {metrics_str} bs:{bs}")
+                        pbar.set_description_str(f"epoch:{epoch + 1}/{self.epochs} {metrics_str} bs:{bs}")
 
                         self.run_callbacks("on_batch_end")
                         if self.args.plots and ni in self.plot_idx:
