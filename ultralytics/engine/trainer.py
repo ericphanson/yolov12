@@ -36,7 +36,6 @@ from ultralytics.utils import (
     colorstr,
     emojis,
     yaml_save,
-    format_time
 )
 from ultralytics.utils.autobatch import check_train_batch_size
 from ultralytics.utils.checks import check_amp, check_file, check_imgsz, check_model_file_from_stem, print_args
@@ -55,6 +54,14 @@ from ultralytics.utils.torch_utils import (
     torch_distributed_zero_first,
 )
 
+
+# Convert to nice human-readable strings
+# elapsed_s   = format_time(elapsed)               # "0:01:34"
+def format_time(seconds):
+    """Formats a time duration in seconds to a human-readable string."""
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}:{minutes:02}:{seconds:02}"
 
 class BaseTrainer:
     """
