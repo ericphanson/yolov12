@@ -416,18 +416,15 @@ class BaseTrainer:
                     if RANK in {-1, 0}:
                         loss_length = self.tloss.shape[0] if len(self.tloss.shape) else 1
                         elapsed   = pbar.format_dict["elapsed"]                 # seconds → float
-                        remaining = pbar.format_dict["remaining"]               # idem
                         rate      = pbar.format_dict["rate"] or 0               # it/s  → float
 
                         # Convert to nice human-readable strings
                         elapsed_s   = format_time(elapsed)               # "0:01:34"
-                        remaining_s = format_time(remaining)             # "0:03:12"
                         rate_s      = f"{rate:6.1f} it/s"
 
                         pbar.set_description(
-                            ("%9s  %9s  %9s  " + "%11s" * 2 + "%11.4g" * (2 + loss_length))
+                            ("%9s  %9s  " + "%11s" * 2 + "%11.4g" * (2 + loss_length))
                             % (
-                                remaining_s,       # new ●
                                 elapsed_s,         # new ●
                                 rate_s,            # new ●
                                 f"{epoch + 1}/{self.epochs}",
